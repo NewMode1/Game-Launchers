@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
+<title>Program Launcher</title>
+<style>
+:root{--ink:#f1f1f2;--dim:#9a9a9f;--glass:rgba(20,20,22,.55);--edge:rgba(255,255,255,.12);--hot:rgba(255,255,255,.14);--bg:url(assets/dark.png);--thumb:rgba(255,255,255,.2);--thumb-h:rgba(255,255,255,.4)}
+[data-theme=light]{--ink:#18181a;--dim:#5d5d63;--glass:rgba(255,255,255,.55);--edge:rgba(0,0,0,.14);--hot:rgba(0,0,0,.09);--bg:url(assets/light.png);--thumb:rgba(0,0,0,.25);--thumb-h:rgba(0,0,0,.45)}
+*{box-sizing:border-box;margin:0}
+html,body{height:100%;overflow:hidden}
+body{font:15px/1.4 "Segoe UI Variable","Segoe UI",system-ui,sans-serif;color:var(--ink);background:var(--bg) center/cover;display:flex;user-select:none}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+#rail{width:96px;padding:20px 0;display:flex;flex-direction:column;align-items:center;gap:14px;background:var(--glass);backdrop-filter:blur(18px);border-right:1px solid var(--edge);overflow-y:auto}
+.g{width:60px;height:60px;border-radius:18px;border:1px solid var(--edge);display:grid;place-items:center;font-size:24px;font-weight:600;overflow:hidden;flex:none;transition:border-radius .18s,background .18s}
+.g img{width:100%;height:100%;object-fit:cover}
+.g:hover{background:var(--hot)}
+.g.on{border-radius:12px;background:var(--hot);box-shadow:0 0 0 2px var(--ink)}
+.g.add{border-style:dashed;color:var(--dim);font-weight:300;font-size:30px}
+#rail .sp{flex:1}
+main{flex:1;display:flex;flex-direction:column;padding:34px 44px;min-width:0}
+header{display:flex;align-items:baseline;gap:16px;margin-bottom:28px}
+h1{font-size:34px;font-weight:300;letter-spacing:-.02em;flex:1}
+.tool{padding:8px 16px;border:1px solid var(--edge);border-radius:999px;background:var(--glass);backdrop-filter:blur(12px)}
+.tool:hover{background:var(--hot)}
+#grid{display:grid;grid-template-columns:repeat(auto-fill,128px);gap:22px 20px;align-content:start;overflow-y:auto;padding:4px}
+.x{width:128px;display:flex;flex-direction:column;align-items:center;gap:10px;padding:14px 8px;border-radius:16px;border:1px solid transparent}
+.x:hover{background:var(--glass);border-color:var(--edge);backdrop-filter:blur(12px)}
+.x img{width:96px;height:96px;object-fit:contain;filter:drop-shadow(0 6px 10px rgba(0,0,0,.45))}
+.x span{font-size:13px;text-align:center;max-width:112px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.x.gone{opacity:.45}
+.empty{color:var(--dim);margin-top:12vh;text-align:center;grid-column:1/-1}
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:10px 18px;border-radius:12px;background:var(--glass);border:1px solid var(--edge);backdrop-filter:blur(14px);opacity:0;pointer-events:none;transition:opacity .2s}
+#toast.show{opacity:1}
+#menu{position:fixed;display:none;min-width:170px;padding:6px;border-radius:12px;background:var(--glass);border:1px solid var(--edge);backdrop-filter:blur(18px);z-index:5}
+#menu button{display:block;width:100%;text-align:left;padding:8px 12px;border-radius:8px}
+#menu button:hover{background:var(--hot)}
+dialog{margin:auto;padding:24px;width:340px;border-radius:18px;border:1px solid var(--edge);background:var(--glass);backdrop-filter:blur(24px);color:var(--ink)}
+dialog::backdrop{background:rgba(0,0,0,.45)}
+dialog h2{font-size:18px;font-weight:600;margin-bottom:14px}
+dialog input{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--edge);background:var(--hot);color:var(--ink);font:inherit;user-select:text}
+.row{display:flex;gap:10px;margin-top:16px;justify-content:flex-end}
+
+[hidden]{display:none!important}
+::-webkit-scrollbar{width:12px;height:12px}
+::-webkit-scrollbar-track,::-webkit-scrollbar-corner{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--thumb);border:3px solid transparent;background-clip:padding-box;border-radius:999px;transition:background-color .15s}
+::-webkit-scrollbar-thumb:hover,::-webkit-scrollbar-thumb:active{background:var(--thumb-h);background-clip:padding-box}
+#rail::-webkit-scrollbar{width:8px}
+#rail::-webkit-scrollbar-thumb{border-width:2px}
+:root{--danger:#ff6b63}[data-theme=light]{--danger:#b3261e}
+#ddMenu .sep{height:1px;margin:5px 4px;background:var(--edge)}
+#ddMenu .warn{color:var(--danger)}
+h1 small{font-size:16px;font-weight:400;color:var(--dim);letter-spacing:0;margin-left:14px}
+#ddMenu button:disabled{opacity:.45;pointer-events:none}
+.dd{position:relative}
+#ddMenu{position:absolute;right:0;top:calc(100% + 8px);min-width:210px;white-space:nowrap;padding:6px;border-radius:14px;background:var(--glass);border:1px solid var(--edge);backdrop-filter:blur(18px);z-index:6}
+#ddMenu button{display:block;width:100%;text-align:left;padding:9px 12px;border-radius:9px}
+#ddMenu button:hover{background:var(--hot)}
+.tool.active{background:var(--hot);border-color:var(--ink)}
+.gw,.xw{position:relative;flex:none}
+.badge{position:absolute;top:-7px;right:-7px;width:26px;height:26px;border-radius:50%;background:#c4362f;color:#fff;font-size:15px;line-height:1;display:grid;place-items:center;border:2px solid rgba(255,255,255,.85);box-shadow:0 2px 8px rgba(0,0,0,.5);z-index:2}
+.xw .badge{top:4px;right:4px}
+.badge:hover{background:#e0453d}
+.editing .x{cursor:default}
+button.danger{background:#c4362f;color:#fff;border-color:transparent}
+button.danger:hover{background:#e0453d}
+dialog p{color:var(--dim);margin-bottom:4px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<nav id="rail" aria-label="Groups"></nav>
+<main>
+  <header>
+    <h1><span id="tName"></span><small id="tCount"></small></h1>
+    <button class="tool" id="addGames">Add Program</button>
+    <div class="dd">
+      <button class="tool" id="settings" aria-haspopup="menu" aria-expanded="false">Settings</button>
+      <div id="ddMenu" role="menu" hidden>
+        <button id="theme" role="menuitem"></button>
+        <button id="mkShortcut" role="menuitem">Create group shortcut</button>
+        <button id="autoClose" role="menuitem"></button>
+        <div class="sep"></div>
+        <button id="editMode" role="menuitem" class="warn">Remove items</button>
+      </div>
+    </div>
+  </header>
+  <div id="grid"></div>
+</main>
+<div id="menu"></div>
+<div id="toast" role="status"></div>
+<dialog id="dlg"><h2 id="dlgT"></h2><input id="dlgIn" maxlength="40" autocomplete="off">
+  <div class="row"><button class="tool" id="dlgNo">Cancel</button><button class="tool" id="dlgOk">Save</button></div></dialog>
+<dialog id="cfm"><h2 id="cfmT"></h2><p id="cfmP"></p>
+  <div class="row"><button class="tool" id="cfmNo">Cancel</button><button class="tool danger" id="cfmOk"></button></div></dialog>
+<script src="renderer.js"></script>
+</body>
+</html>
