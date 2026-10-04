@@ -3,6 +3,9 @@ const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
+// Keep saved data in one fixed folder, whatever product name Windows shows
+app.setPath('userData', path.join(app.getPath('appData'), 'exe-launcher'));
+
 const store = () => path.join(app.getPath('userData'), 'launcher.json');
 const DEFAULT = { theme: 'dark', autoClose: true, closeToTray: true, groups: [] };
 const load = () => { try { return { ...DEFAULT, ...JSON.parse(fs.readFileSync(store(), 'utf8')) }; } catch { return { ...DEFAULT }; } };
@@ -142,10 +145,12 @@ function groupIcon(g) {
 ipcMain.handle('make-shortcut', (_, g) => {
   try {
     const exe = process.env.PORTABLE_EXECUTABLE_FILE || process.execPath;
-    const args = (app.isPackaged ? '' : `"${app.getAppPath()}" `) + `--group=${g.id}`;
+    const script = writeOpenScript(exe);
+    const target = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'wscript.exe');
+    const args = `//B //Nologo "${script}" ${g.id}`;
     const safe = g.name.replace(/[<>:"/\\|?*\x00-\x1f]/g, '').trim() || 'Group';
     const file = path.join(app.getPath('desktop'), `${safe} - Program Launcher.lnk`);
-    const ok = shell.writeShortcutLink(file, 'create', { target: exe, args, cwd: path.dirname(exe),
+    const ok = shell.writeShortcutLink(file, 'create', { target, args, cwd: path.dirname(exe),
       icon: groupIcon(g) || exe, iconIndex: 0, description: `Open ${g.name} in Program Launcher` });
     return ok ? null : 'Windows refused to create the file';
   } catch (e) { return e.message; }
@@ -200,6 +205,69 @@ function createTray() {
   tray.on('right-click', () => tray.popUpContextMenu(trayMenu()));   // rebuilt each time so groups stay current
 }
 
+// --- Instant open ---------------------------------------------------------
+// While the launcher sits in the tray, a group shortcut doesn't start a new copy
+// (a portable exe would unpack itself first). Its small script drops request.json
+// here and this watcher brings the window up straight away.
+const pidFile = () => path.join(app.getPath('userData'), 'running.pid');
+const requestFile = () => path.join(app.getPath('userData'), 'request.json');
+let ownsPid = false;
+
+function startInstantOpen() {
+  const dir = app.getPath('userData');
+  try { fs.mkdirSync(dir, { recursive: true }); } catch {}
+  try { fs.unlinkSync(requestFile()); } catch {}                 // ignore stale requests
+  try { fs.writeFileSync(pidFile(), String(process.pid)); ownsPid = true; } catch {}
+  const handle = () => {
+    try {
+      const r = JSON.parse(fs.readFileSync(requestFile(), 'utf8'));
+      fs.unlinkSync(requestFile());
+      showWindow(r.group || null);
+    } catch { /* not there yet or half-written; the next change event retries */ }
+  };
+  try { fs.watch(dir, (ev, name) => { if (name === 'request.json') handle(); }); } catch {}
+}
+app.on('will-quit', () => { if (ownsPid) { try { fs.unlinkSync(pidFile()); } catch {} } });
+
+// Script run by the desktop shortcut: show the running launcher, or start it
+function writeOpenScript(exe) {
+  const q = (s) => s.replace(/"/g, '""');
+  const base = `"${exe}"` + (app.isPackaged ? '' : ` "${app.getAppPath()}"`);
+  const text = String.raw`Option Explicit
+Dim sh, fso, dataDir, launchBase, group, running, pid, procs, f, ts
+dataDir = "${q(app.getPath('userData'))}"
+launchBase = "${q(base)}"
+Set sh = CreateObject("WScript.Shell")
+Set fso = CreateObject("Scripting.FileSystemObject")
+group = ""
+If WScript.Arguments.Count > 0 Then group = WScript.Arguments(0)
+running = False
+On Error Resume Next
+If fso.FileExists(dataDir & "\running.pid") Then
+  Set ts = fso.OpenTextFile(dataDir & "\running.pid", 1)
+  pid = Trim(ts.ReadAll)
+  ts.Close
+  If IsNumeric(pid) Then
+    Set procs = GetObject("winmgmts:\\.\root\cimv2").ExecQuery("SELECT ProcessId FROM Win32_Process WHERE ProcessId=" & CLng(pid))
+    If procs.Count > 0 Then running = True
+  End If
+End If
+If Err.Number <> 0 Then running = False
+Err.Clear
+On Error GoTo 0
+If running Then
+  Set f = fso.CreateTextFile(dataDir & "\request.json", True)
+  f.Write "{""group"":""" & group & """}"
+  f.Close
+Else
+  sh.Run launchBase & " --group=" & group, 1, False
+End If
+`;
+  const file = path.join(app.getPath('userData'), 'open-group.vbs');
+  fs.writeFileSync(file, Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(text.replace(/\n/g, '\r\n'), 'utf16le')]));
+  return file;
+}
+
 app.on('before-quit', () => { quitting = true; });
 
 // One window only: a group shortcut clicked while the launcher is open switches groups
@@ -208,6 +276,6 @@ else {
   app.on('second-instance', (_, argv) => {
     showWindow(groupArg(argv));
   });
-  app.whenReady().then(() => { createWindow(); createTray(); });
+  app.whenReady().then(() => { createWindow(); createTray(); startInstantOpen(); });
 }
 app.on('window-all-closed', () => app.quit());
