@@ -1,7 +1,7 @@
 {
   "name": "exe-launcher",
   "productName": "Program Launcher",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -10,13 +10,37 @@
     "build:all": "electron-builder --win portable --x64 --ia32",
     "build:installer": "electron-builder --win nsis --x64"
   },
-  "devDependencies": { "electron": "^31.0.0", "electron-builder": "^24.13.3" },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
   "build": {
     "appId": "local.exelauncher",
     "executableName": "ProgramLauncher",
-    "files": ["**/*", "!dist/**", "!README.md"],
-    "win": { "target": "portable", "icon": "assets/icon.ico" },
-    "portable": { "artifactName": "ProgramLauncher-${arch}.exe" },
-    "nsis": { "oneClick": true, "perMachine": false, "artifactName": "ProgramLauncher-Setup-${arch}.exe" }
+    "directories": {
+      "output": "versions"
+    },
+    "files": [
+      "**/*",
+      "!dist/**",
+      "!versions/**",
+      "!README.md"
+    ],
+    "win": {
+      "target": "portable",
+      "icon": "assets/icon.ico"
+    },
+    "portable": {
+      "artifactName": "ProgramLauncher_${version}-${arch}.exe"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "artifactName": "ProgramLauncher_${version}-${arch}-setup.exe"
+    },
+    "compression": "maximum",
+    "electronLanguages": [
+      "en-US"
+    ]
   }
 }

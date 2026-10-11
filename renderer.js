@@ -2,6 +2,8 @@ const $ = (s) => document.querySelector(s);
 let closeTimer = null;
 const autoOn = () => S.autoClose !== false;
 const trayOn = () => S.closeToTray !== false;
+const STARTUP = { off: 'Off', min: 'Minimized', open: 'Open' };
+const startupMode = () => (S.startup in STARTUP ? S.startup : 'off');
 let S = { theme: 'dark', groups: [] }, cur = null, editing = false;
 const id = () => Math.random().toString(36).slice(2, 9);
 const persist = () => api.save(S);
@@ -50,7 +52,8 @@ function render(){
   $('#tName').textContent=g?g.name:'Program Launcher';$('#tCount').textContent=g?`${n} Program${n===1?'':'s'}`:'';
   $('#mkShortcut').disabled=!g;
   $('#autoClose').textContent=`Auto-close: ${autoOn()?'On':'Off'}`;
-  $('#trayOpt').textContent=`Close to tray: ${trayOn()?'On':'Off'}`;$('#addGames').style.display=g?'':'none';
+  $('#trayOpt').textContent=`Close to tray: ${trayOn()?'On':'Off'}`;
+  $('#startupOpt').textContent=`Open on startup: ${STARTUP[startupMode()]}`;$('#addGames').style.display=g?'':'none';
   if(!g){grid.innerHTML='<p class="empty">Create a group with the + button to get started.</p>';return}
   if(!g.items.length){grid.innerHTML='<p class="empty">This group is empty. Choose Add Program to pick your executables or shortcuts.</p>';return}
   g.items.forEach(it=>{
@@ -101,6 +104,11 @@ $('#addGames').onclick=async()=>{const g=S.groups.find(x=>x.id===cur);if(!g)retu
   persist();render();if(blocked)toast("The launcher can't be added as a program.")};
 $('#autoClose').onclick=()=>{S.autoClose=!autoOn();if(closeTimer){clearTimeout(closeTimer);closeTimer=null;toast('Auto-close cancelled')}persist();render()};
 $('#trayOpt').onclick=()=>{S.closeToTray=!trayOn();persist();render()};
+$('#startupOpt').onclick=async()=>{
+  const order=Object.keys(STARTUP),next=order[(order.indexOf(startupMode())+1)%order.length];
+  const e=await api.setStartup(next);
+  if(e){toast(`Couldn't change startup: ${e}`);return}
+  S.startup=next;persist();render();toast(`Open on startup: ${STARTUP[next]}`)};
 $('#mkShortcut').onclick=async()=>{const g=S.groups.find(x=>x.id===cur);if(!g)return;
   const pngs=g.icon?await toPngs(g.icon):null;
   const e=await api.makeShortcut({id:g.id,name:g.name,icon:g.icon,pngs});toast(e?`Couldn't create the shortcut: ${e}`:`Shortcut for “${g.name}” added to your desktop`)};

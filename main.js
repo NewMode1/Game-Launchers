@@ -7,7 +7,7 @@ const fs = require('fs');
 app.setPath('userData', path.join(app.getPath('appData'), 'exe-launcher'));
 
 const store = () => path.join(app.getPath('userData'), 'launcher.json');
-const DEFAULT = { theme: 'dark', autoClose: true, closeToTray: true, groups: [] };
+const DEFAULT = { theme: 'dark', autoClose: true, closeToTray: true, startup: 'off', groups: [] };
 const load = () => { try { return { ...DEFAULT, ...JSON.parse(fs.readFileSync(store(), 'utf8')) }; } catch { return { ...DEFAULT }; } };
 const save = (d) => fs.writeFileSync(store(), JSON.stringify(d, null, 2));
 
@@ -23,12 +23,13 @@ function windowSize() {
 let win, tray, quitting = false;
 const groupArg = (argv) => (argv.find((a) => a.startsWith('--group=')) || '').slice(8) || null;
 let startGroup = groupArg(process.argv);
+const startMinimized = process.argv.includes('--minimized');   // set by the startup shortcut's "Minimized" mode
 
 function createWindow() {
   const [width, height] = windowSize();
   win = new BrowserWindow({
     width, height, useContentSize: true, resizable: false, maximizable: false,
-    autoHideMenuBar: true, backgroundColor: '#080808', title: 'Program Launcher', icon: nativeImage.createFromBuffer(Buffer.from(ICON_256, 'base64')),
+    autoHideMenuBar: true, backgroundColor: '#080808', title: 'Program Launcher', show: !startMinimized, icon: nativeImage.createFromBuffer(Buffer.from(ICON_256, 'base64')),
     webPreferences: { preload: path.join(__dirname, 'preload.js') }
   });
   win.removeMenu();
@@ -146,7 +147,7 @@ ipcMain.handle('make-shortcut', (_, g) => {
   try {
     const exe = process.env.PORTABLE_EXECUTABLE_FILE || process.execPath;
     const script = writeOpenScript(exe);
-    const target = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'wscript.exe');
+    const target = wscriptPath();
     const args = `//B //Nologo "${script}" ${g.id}`;
     const safe = g.name.replace(/[<>:"/\\|?*\x00-\x1f]/g, '').trim() || 'Group';
     const file = path.join(app.getPath('desktop'), `${safe} - Program Launcher.lnk`);
@@ -234,13 +235,21 @@ function writeOpenScript(exe) {
   const q = (s) => s.replace(/"/g, '""');
   const base = `"${exe}"` + (app.isPackaged ? '' : ` "${app.getAppPath()}"`);
   const text = String.raw`Option Explicit
-Dim sh, fso, dataDir, launchBase, group, running, pid, procs, f, ts
+Dim sh, fso, dataDir, launchBase, group, minimized, running, pid, procs, f, ts, i, a
 dataDir = "${q(app.getPath('userData'))}"
 launchBase = "${q(base)}"
 Set sh = CreateObject("WScript.Shell")
 Set fso = CreateObject("Scripting.FileSystemObject")
 group = ""
-If WScript.Arguments.Count > 0 Then group = WScript.Arguments(0)
+minimized = False
+For i = 0 To WScript.Arguments.Count - 1
+  a = WScript.Arguments(i)
+  If a = "--min" Then
+    minimized = True
+  Else
+    group = a
+  End If
+Next
 running = False
 On Error Resume Next
 If fso.FileExists(dataDir & "\running.pid") Then
@@ -256,17 +265,49 @@ If Err.Number <> 0 Then running = False
 Err.Clear
 On Error GoTo 0
 If running Then
-  Set f = fso.CreateTextFile(dataDir & "\request.json", True)
-  f.Write "{""group"":""" & group & """}"
-  f.Close
+  If Not minimized Then
+    Set f = fso.CreateTextFile(dataDir & "\request.json", True)
+    f.Write "{""group"":""" & group & """}"
+    f.Close
+  End If
 Else
-  sh.Run launchBase & " --group=" & group, 1, False
-End If
-`;
+  a = launchBase & " --group=" & group
+  If minimized Then a = a & " --minimized"
+  sh.Run a, 1, False
+End If`;
   const file = path.join(app.getPath('userData'), 'open-group.vbs');
+  fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(text.replace(/\n/g, '\r\n'), 'utf16le')]));
   return file;
 }
+
+// --- Open on startup ------------------------------------------------------
+// A shortcut in the user's Startup folder runs the same script the desktop shortcuts use.
+const wscriptPath = () => path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'wscript.exe');
+const launcherExe = () => process.env.PORTABLE_EXECUTABLE_FILE || process.execPath;
+const startupLink = () => path.join(app.getPath('appData'), 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup', 'Program Launcher.lnk');
+
+function applyStartup(mode) {   // 'off' | 'min' | 'open'; returns an error message or null
+  try {
+    if (mode !== 'min' && mode !== 'open') { fs.rmSync(startupLink(), { force: true }); return null; }
+    const exe = launcherExe(), script = writeOpenScript(exe);
+    const ok = shell.writeShortcutLink(startupLink(), 'create', {
+      target: wscriptPath(), args: `//B //Nologo "${script}"` + (mode === 'min' ? ' --min' : ''),
+      cwd: path.dirname(exe), icon: exe, iconIndex: 0, description: 'Program Launcher' });
+    return ok ? null : 'Windows refused to create the startup shortcut';
+  } catch (e) { return e.message; }
+}
+
+// Re-point the script and startup shortcut at the exe's current location on every start
+function refreshStartupFiles() {
+  if (!app.isPackaged) return;   // dev runs must not repoint shortcuts at electron.exe
+  try {
+    writeOpenScript(launcherExe());
+    const m = load().startup;
+    if (m === 'min' || m === 'open') applyStartup(m);
+  } catch {}
+}
+ipcMain.handle('set-startup', (_, mode) => applyStartup(mode));
 
 app.on('before-quit', () => { quitting = true; });
 
@@ -276,6 +317,6 @@ else {
   app.on('second-instance', (_, argv) => {
     showWindow(groupArg(argv));
   });
-  app.whenReady().then(() => { createWindow(); createTray(); startInstantOpen(); });
+  app.whenReady().then(() => { createWindow(); createTray(); startInstantOpen(); refreshStartupFiles(); });
 }
 app.on('window-all-closed', () => app.quit());

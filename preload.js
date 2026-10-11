@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('api', {
   fileIcon: (i) => ipc.invoke('file-icon', i), launch: (i) => ipc.invoke('launch', i),
   exists: (i) => ipc.invoke('exists', i),
   startupGroup: () => ipc.invoke('startup-group'), closeWindow: () => ipc.invoke('close-window'),
+  setStartup: (m) => ipc.invoke('set-startup', m),
   makeShortcut: (g) => ipc.invoke('make-shortcut', g),
   onSelectGroup: (cb) => ipc.on('select-group', (_, id) => cb(id))
 });

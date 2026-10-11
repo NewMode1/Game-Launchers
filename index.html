@@ -5,11 +5,11 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <title>Program Launcher</title>
 <style>
-:root{--ink:#f1f1f2;--dim:#9a9a9f;--glass:rgba(20,20,22,.55);--edge:rgba(255,255,255,.12);--hot:rgba(255,255,255,.14);--bg:url(assets/dark.png);--thumb:rgba(255,255,255,.2);--thumb-h:rgba(255,255,255,.4)}
-[data-theme=light]{--ink:#18181a;--dim:#5d5d63;--glass:rgba(255,255,255,.55);--edge:rgba(0,0,0,.14);--hot:rgba(0,0,0,.09);--bg:url(assets/light.png);--thumb:rgba(0,0,0,.25);--thumb-h:rgba(0,0,0,.45)}
+:root{--ink:#f1f1f2;--dim:#9a9a9f;--glass:rgba(20,20,22,.55);--edge:rgba(255,255,255,.12);--hot:rgba(255,255,255,.14);--bg:url(assets/dark.jpg);--base:#080808;--thumb:rgba(255,255,255,.2);--thumb-h:rgba(255,255,255,.4)}
+[data-theme=light]{--ink:#18181a;--dim:#5d5d63;--glass:rgba(255,255,255,.55);--edge:rgba(0,0,0,.14);--hot:rgba(0,0,0,.09);--bg:url(assets/light.jpg);--base:#e6e6e9;--thumb:rgba(0,0,0,.25);--thumb-h:rgba(0,0,0,.45)}
 *{box-sizing:border-box;margin:0}
 html,body{height:100%;overflow:hidden}
-body{font:15px/1.4 "Segoe UI Variable","Segoe UI",system-ui,sans-serif;color:var(--ink);background:var(--bg) center/cover;display:flex;user-select:none}
+body{font:15px/1.4 "Segoe UI Variable","Segoe UI",system-ui,sans-serif;color:var(--ink);background:var(--bg) center/cover var(--base);display:flex;user-select:none}
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 :focus-visible{outline:2px solid var(--ink);outline-offset:3px}
 #rail{width:96px;padding:20px 0;display:flex;flex-direction:column;align-items:center;gap:14px;background:var(--glass);backdrop-filter:blur(18px);border-right:1px solid var(--edge);overflow-y:auto}
@@ -83,6 +83,7 @@ dialog p{color:var(--dim);margin-bottom:4px}
         <button id="mkShortcut" role="menuitem">Create group shortcut</button>
         <button id="autoClose" role="menuitem"></button>
         <button id="trayOpt" role="menuitem"></button>
+        <button id="startupOpt" role="menuitem"></button>
         <div class="sep"></div>
         <button id="editMode" role="menuitem" class="warn">Remove items</button>
       </div>
